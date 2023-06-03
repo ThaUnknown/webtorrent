@@ -82,6 +82,7 @@
     "airtap": "4.0.4",
     "airtap-manual": "1.0.0",
     "airtap-sauce": "1.1.2",
+    "airtap-system": "^0.1.0",
     "babelify": "10.0.0",
     "bittorrent-tracker": "10.0.6",
     "buffer": "^6.0.3",
@@ -162,7 +163,7 @@
     "size-disc": "npm run build-js && cat ./dist/webtorrent.min.js | discify --open",
     "size-js": "npm run build-js && cat ./dist/webtorrent.min.js | gzip | wc -c",
     "test": "eslint . && npm run test-node && npm run test-browser",
-    "test-browser": "airtap --concurrency 1 --loopback airtap.localhost -- test/*.js test/browser/*.js",
+    "test-browser": "airtap --all -- test/*.js",
     "test-browser-local": "airtap --preset local -- test/*.js test/browser/*.js | tap-spec",
     "test-node": "tape test/*.js test/node/*.js | tap-spec",
     "update-authors": "./scripts/update-authors.sh"

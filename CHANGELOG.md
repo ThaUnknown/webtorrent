@@ -1,3 +1,38 @@
+## [2.6.6](https://github.com/webtorrent/webtorrent/compare/v2.6.5...v2.6.6) (2025-05-15)
+
+
+### Bug Fixes
+
+* **deps:** update webtorrent ([#2951](https://github.com/webtorrent/webtorrent/issues/2951)) ([e9eb53c](https://github.com/webtorrent/webtorrent/commit/e9eb53ce5db33f212bc44702d0e157b665040eb4))
+
+## [2.6.5](https://github.com/webtorrent/webtorrent/compare/v2.6.4...v2.6.5) (2025-05-14)
+
+
+### Bug Fixes
+
+* **deps:** update dependency bittorrent-dht to ^11.0.10 ([#2950](https://github.com/webtorrent/webtorrent/issues/2950)) ([effaf4e](https://github.com/webtorrent/webtorrent/commit/effaf4e55e30d91362b924a774ba243bea86d09c))
+
+## [2.6.4](https://github.com/webtorrent/webtorrent/compare/v2.6.3...v2.6.4) (2025-05-14)
+
+
+### Bug Fixes
+
+* **deps:** update dependency debug to ^4.4.1 ([#2949](https://github.com/webtorrent/webtorrent/issues/2949)) ([2954871](https://github.com/webtorrent/webtorrent/commit/2954871756160e6071d873f489703c1c245dc202))
+
+## [2.6.3](https://github.com/webtorrent/webtorrent/compare/v2.6.2...v2.6.3) (2025-04-18)
+
+
+### Bug Fixes
+
+* **deps:** update dependency torrent-discovery to ^11.0.16 ([#2943](https://github.com/webtorrent/webtorrent/issues/2943)) ([6c0154e](https://github.com/webtorrent/webtorrent/commit/6c0154e5255f9c6590dcb62c466ed22c043d5ee0))
+
+## [2.6.2](https://github.com/webtorrent/webtorrent/compare/v2.6.1...v2.6.2) (2025-04-18)
+
+
+### Bug Fixes
+
+* null body on OPTIONS ([#2942](https://github.com/webtorrent/webtorrent/issues/2942)) ([76b508a](https://github.com/webtorrent/webtorrent/commit/76b508aa3482697dfad11d42d7d34de52484e65b))
+
 ## [2.6.1](https://github.com/webtorrent/webtorrent/compare/v2.6.0...v2.6.1) (2025-04-18)
 
 

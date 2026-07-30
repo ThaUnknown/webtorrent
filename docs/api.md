@@ -58,6 +58,7 @@ If `opts` is specified, then the default options (shown below) will be overridde
 ```js
 {
   maxConns: Number,        // Max number of connections per torrent (default=55)
+  connectionBudget: Number,  // Connection budget target across all torrents (default=200)
   nodeId: String|Uint8Array,   // DHT protocol node ID (default=randomly generated)
   peerId: String|Uint8Array,   // Wire protocol peer ID (default=randomly generated)
   tracker: Boolean|Object, // Enable trackers (default=true), or options object for Tracker
@@ -94,16 +95,22 @@ For `opts.natUpnp`, if set to `true`, a temporary mapping is used, if set to `pe
 For `opts.seedOutgoingConnections`, if set `true`, outgoing connections will be established while seeding, otherwise, only inbound connections will be responded to.
 
 For `downloadLimit`, `uploadLimit`, `torrentDownloadLimit` and `torrentUploadLimit` the possible values can be:
-  - `> 0`. The client will set the throttle at that speed
-  - `0`. The client will block any data from being downloaded or uploaded
-  - `-1`. The client will disable the throttling and use the whole bandwidth available
+
+* `> 0`. The client will set the throttle at that speed
+* `0`. The client will block any data from being downloaded or uploaded
+* `-1`. The client will disable the throttling and use the whole bandwidth available
 
 Per-torrent limits are independent of global limits - the effective rate is the minimum of the two.
 
+`connectionBudget` is a priority-based connection budget target across all torrents. Not a hard cap, when the budget is fully utilized, torrents at or above their fair share are limited, leaving room for others to catch up.
+
+Each priority point gets a base allocation (`connectionBudget / totalPriority`, minimum 1). A priority-3 torrent always gets 3x the slots of a priority-1 torrent.
+
 For `secure` the possible values can be:
-  - `0`. RC4 encryption is disabled.
-  - `1`. RC4 encryption is enabled for handshake only. Has close to 0 performance impact.
-  - `2`. RC4 encryption is enabled for handshake and payload. Consider using `--openssl-legacy-provider` for a native RC4 implementation, which offers much better performance than the JS version.
+
+* `0`. RC4 encryption is disabled.
+* `1`. RC4 encryption is enabled for handshake only. Has close to 0 performance impact.
+* `2`. RC4 encryption is enabled for handshake and payload. Consider using `--openssl-legacy-provider` for a native RC4 implementation, which offers much better performance than the JS version.
 
 ## `client.add(torrentId, [opts], [function ontorrent (torrent) {}])`
 
@@ -111,12 +118,12 @@ Start downloading a new torrent.
 
 `torrentId` can be one of:
 
-- magnet uri (string)
-- torrent file (Uint8Array)
-- info hash (hex string or Uint8Array)
-- parsed torrent (from [parse-torrent](https://github.com/webtorrent/parse-torrent))
-- http/https url to a torrent file (string)
-- filesystem path to a torrent file (string) *(Node.js only)*
+* magnet uri (string)
+* torrent file (Uint8Array)
+* info hash (hex string or Uint8Array)
+* parsed torrent (from [parse-torrent](https://github.com/webtorrent/parse-torrent))
+* http/https url to a torrent file (string)
+* filesystem path to a torrent file (string) *(Node.js only)*
 
 If `opts` is specified, then the default options (shown below) will be overridden.
 
@@ -143,6 +150,7 @@ If `opts` is specified, then the default options (shown below) will be overridde
   alwaysChokeSeeders: Boolean, // If true, client will automatically choke seeders if it's seeding. (default=true)
   downloadSpeedLimit: Number, // Per-torrent download speed limit (bytes/sec) over all peers for this torrent (default=-1)
   uploadSpeedLimit: Number   // Per-torrent upload speed limit (bytes/sec) over all peers for this torrent (default=-1)
+  priority: Number           // Torrent priority for connection budget allocation (default=1, higher = preferred)
 }
 ```
 
@@ -176,31 +184,31 @@ Start seeding a new torrent.
 
 `input` can be any of the following:
 
-- filesystem path to file or folder
- (string) *(Node.js only)*
-- W3C [FileList](https://developer.mozilla.org/en-US/docs/Web/API/FileList) object (basically an array of `File` objects) *(browser only)*
-- W3C [File](https://developer.mozilla.org/en-US/docs/Web/API/File)/[Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) object (from an `<input>` or drag and drop)
-- typed array or array of numbers
-- Node [Buffer](https://nodejs.org/api/buffer.html) object
-- Node [Readable stream](https://nodejs.org/api/stream.html#stream_class_stream_readable) object
+* filesystem path to file or folder
+  (string) *(Node.js only)*
+* W3C [FileList](https://developer.mozilla.org/en-US/docs/Web/API/FileList) object (basically an array of `File` objects) *(browser only)*
+* W3C [File](https://developer.mozilla.org/en-US/docs/Web/API/File)/[Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) object (from an `<input>` or drag and drop)
+* typed array or array of numbers
+* Node [Buffer](https://nodejs.org/api/buffer.html) object
+* Node [Readable stream](https://nodejs.org/api/stream.html#stream_class_stream_readable) object
 
 Or, an **array of of any of those values**.
 
 If `opts` is specified, it should contain the following types of options:
 
-- options for [create-torrent](https://github.com/webtorrent/create-torrent#createtorrentinput-opts-function-callback-err-torrent-) (to allow configuration of the .torrent file that is created)
-- options for `client.add` (see above)
+* options for [create-torrent](https://github.com/webtorrent/create-torrent#createtorrentinput-opts-function-callback-err-torrent-) (to allow configuration of the .torrent file that is created)
+* options for `client.add` (see above)
 
 If `onseed` is specified, it will be called when the client has begun seeding the file.
 
 **Note:** Every torrent is required to have a name. If one is not explicitly provided
 through `opts.name`, one will be determined automatically using the following logic:
 
-- If all files share a common path prefix, that will be used. For example, if all file
+* If all files share a common path prefix, that will be used. For example, if all file
   paths start with `/imgs/` the torrent name will be `imgs`.
-- Otherwise, the first file that has a name will determine the torrent name. For example,
+* Otherwise, the first file that has a name will determine the torrent name. For example,
   if the first file is `/foo/bar/baz.txt`, the torrent name will be `baz.txt`.
-- If no files have names (say that all files are Uint8Array or Stream objects), then a name
+* If no files have names (say that all files are Uint8Array or Stream objects), then a name
   like "Unnamed Torrent <id>" will be generated.
 
 **Note:** Every file is required to have a name. For filesystem paths or W3C File objects,
@@ -314,6 +322,7 @@ global limit.
 
 Create an http server to serve the contents of this torrent, dynamically fetching the needed torrent pieces to satisfy http requests. Range requests are supported.
 If `opts` is specified, it can have the following properties:
+
 ```js
 {
   origin: String // Allow requests from specific origin. `false` for same-origin. [default: '*']
@@ -324,12 +333,12 @@ If `opts` is specified, it can have the following properties:
 ```
 
 If `force` is specified, it can force WebTorrent to use a specific implementation for enviorments which run both Node and Browser like NW.js or Electron. Allowed values:
+
 ```js
 'browser' || 'node'
 ```
 
 Visiting the root of the server `/` won't show anything. Visiting `/webtorrent/` will list all torrents. Access individual torrents at `/webtorrent/<infohash>` where `infohash` is the hash of the torrent. To acceess individual files, go to `/webtorrent/<infoHash>/<filepath>` where filepath is the file's path in the torrent.
-
 
 Here is a usage example for Node.js:
 
@@ -379,6 +388,7 @@ client.add(magnetURI, torrent => {
 client._server.close()
 client.destroy()
 ```
+
 Needs either [this worker](https://github.com/webtorrent/webtorrent/blob/master/sw.min.js) to be used, or have [this functionality](https://github.com/webtorrent/webtorrent/blob/master/lib/worker.js) implemented.
 
 # Torrent API
@@ -510,6 +520,17 @@ If truthy, `store.destroy()` will be called, which will delete the torrent's fil
 If `callback` is provided, it will be called when the torrent is fully destroyed,
 i.e. all open sockets are closed, and the storage is either closed or destroyed.
 
+## `torrent.setPriority(priority)`
+
+Sets the torrent's priority (minimum `1`). The connection budget target (`connectionBudget`)
+is shared across all torrents based on priority — a priority-3 torrent always gets 3x the
+target of a priority-1 torrent. Targets are recalculated immediately when priorities change
+or torrents are added/removed.
+
+The budget is a target, not a hard cap. Torrents never lose existing peers when their target
+shrinks; they simply stop accepting new ones until peers disconnect naturally. The per-torrent
+`maxConns` still applies as an absolute upper bound.
+
 ## `torrent.addPeer(peer)`
 
 Add a peer to the torrent swarm. This is advanced functionality. Normally, you should not
@@ -583,7 +604,6 @@ Deprioritizes a range of previously selected pieces.
 Marks a range of pieces as critical priority to be downloaded ASAP. From `start` to `end`
 (both inclusive).
 
-
 ## `torrent.pause()`
 
 Temporarily stop connecting to new peers. Note that this does not pause new incoming
@@ -636,7 +656,7 @@ afterwards. Therefore, always listen for errors in both places
 
 ## `torrent.on('idle', function () {})`
 
-Emitted when the torrent has no more active selections to download, and starts idling 
+Emitted when the torrent has no more active selections to download, and starts idling
 or seeding. This can happen when a file is fully downloaded, or when the desired pieces
 have been downloaded.
 
@@ -816,6 +836,7 @@ You can pass `opts` to get only a part of an ArrayBuffer.
 const data = await file.arrayBuffer()
 console.log(data) // ArrayBuffer { [Uint8Contents]: <00 62 00 01>, byteLength: 4 }
 ```
+
 ## `blob = await file.blob(opts)`
 
 Get a W3C `Blob` object which contains the file data.
@@ -830,6 +851,7 @@ You can pass `opts` to get only a part of an Blob.
   end: endByte
 }
 ```
+
 ## `file.streamTo(elem)` *(browser only)*
 
 Requires `client.createServer` to be ran beforehand. Sets the element source to the file's streaming URL. Supports streaming, seeking and all browser codecs and containers.
@@ -840,8 +862,8 @@ Support table:
 |3g2|✓|✓|✓|✓|✓|
 |3gp|✓|✓|✓|✓|✘|
 |avi|✘|✘|✘|✘|✘|
-|m2ts|✘|✘|✓**|✘|✘|
-|m4v etc.|✓*|✓*|✓*|✓*|✓*|
+|m2ts|✘|✘|✓\*\*|✘|✘|
+|m4v etc.|✓*|✓*|✓*|✓*|✓\*|
 |mp4|✓|✓|✓|✓|✓|
 |mpeg|✘|✘|✘|✘|✘|
 |mov|✓|✓|✓|✓|✓|
@@ -849,15 +871,15 @@ Support table:
 |webm|✓|✓|✓|✓|✓|
 |mkv|✓|✓|✓|✓|✘|
 
-\* Container might be supported, but the container's codecs might not be.  
-\*\* Documented as working, but can't reproduce.  
+\* Container might be supported, but the container's codecs might not be.\
+\*\* Documented as working, but can't reproduce.
 
 |Video Codecs|Chromium|Mobile Chromium|Edge|Chrome|Firefox|
 |-|:-:|:-:|:-:|:-:|:-:|
 |AV1|✓|✓|✓|✓|✓|
 |H.263|✘|✘|✘|✘|✘|
 |H.264|✓|✓|✓|✓|✓|
-|H.265|✘|✘|✓*|✓|✘|
+|H.265|✘|✘|✓\*|✓|✘|
 |MPEG-2/4|✘|✘|✘|✘|✘|
 |Theora|✓|✘|✓|✓|✓|
 |VP8/9|✓|✓|✓|✓|✓|
@@ -879,6 +901,7 @@ Support table:
 \* Might not work in some video containers.
 
 Since container and codec support is browser dependent these values might change over time.
+
 ## `file.streamURL`
 
 Requires `client.createServer` to be ran beforehand.
@@ -921,13 +944,15 @@ This is advanced functionality.
 Emitted every time when the HTTP server creates a new read stream. For example every time the user seeks a video. This allows you to find out what parts of the file the browser is requesting, and how it's requesting them. Additionally it allows you to manipulate the data that's being streamed.
 
 Yields an object with 3 values and a function:
-- object - information about the request,
-  - `stream` - a [readable stream](https://nodejs.org/api/stream.html#stream_class_stream_readable) which the user can manipulate,
-  - `file` - the file object that's being streamed,
-  - `req` - all the request information which the browser made when requesting the data.
-- function - if you pipe the `stream`, use this function to callback the piped stream **synchronously!** Otherwise the playback is likely to break.
+
+* object - information about the request,
+  * `stream` - a [readable stream](https://nodejs.org/api/stream.html#stream_class_stream_readable) which the user can manipulate,
+  * `file` - the file object that's being streamed,
+  * `req` - all the request information which the browser made when requesting the data.
+* function - if you pipe the `stream`, use this function to callback the piped stream **synchronously!** Otherwise the playback is likely to break.
 
 Example usage:
+
 ```js
 file.on('stream', ({ stream, file, req }, cb) => {
   if (req.destination === 'audio' && file.name.endsWith('.dts')) {
@@ -945,13 +970,15 @@ This is advanced functionality.
 Same as with the `stream` event this is emitted by the HTTP server when it creates an async iterator for the file's data. This is used for very low-level manipulation of the incoming data and they way it's generated for example you could potentially accelerate how fast and how much data is pulled from the torrent.
 
 Yields an object with 3 values and a function:
-- object - information about the request,
-  - `iterator` - an [async iterator](https://devdocs.io/javascript/global_objects/symbol/asynciterator) which the user can manipulate,
-  - `file` - the file object that's being streamed,
-  - `req` - all the request information which the browser made when requesting the data.
-- function - if you wish to transform the `iterator`, use this function to callback the transformed iterator **synchronously!** Otherwise the playback is likely to break.
+
+* object - information about the request,
+  * `iterator` - an [async iterator](https://devdocs.io/javascript/global_objects/symbol/asynciterator) which the user can manipulate,
+  * `file` - the file object that's being streamed,
+  * `req` - all the request information which the browser made when requesting the data.
+* function - if you wish to transform the `iterator`, use this function to callback the transformed iterator **synchronously!** Otherwise the playback is likely to break.
 
 Example usage:
+
 ```js
 import par from 'it-parallel'
 
@@ -962,6 +989,7 @@ file.on('iterator', ({ iterator, file, req }, cb) => {
 ```
 
 ## `file.includes(piece)`
+
 Check if the piece number contains this file's data.
 
 ## `file.on('done', function () {})`

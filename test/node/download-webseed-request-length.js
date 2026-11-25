@@ -13,7 +13,7 @@ const CONTENT = new Uint8Array(4 * PIECE_LENGTH + 1000).map((_, i) => (i * 7) % 
 
 /** A webseed connection that serves CONTENT, like a custom webseed that an application adds with addWebSeed. */
 class ContentWebSeed extends Wire {
-  constructor (id, torrent, { failFirstRequest = false } = {}) {
+  constructor (id, torrent, { failFirstRequest = false, holdRequest } = {}) {
     super()
     this.connId = id
     this.requestLengths = []
@@ -34,6 +34,7 @@ class ContentWebSeed extends Wire {
 
     this.on('request', (pieceIndex, offset, length, callback) => {
       this.requestLengths.push(length)
+      if (holdRequest?.(this, pieceIndex, offset, length, callback)) return
       if (this.failNextRequest) {
         this.failNextRequest = false
         // A webseed reports a failure with donthave, like WebConn. Then it offers the piece again.
@@ -56,23 +57,31 @@ function createTorrentFile () {
   })
 }
 
-/** Downloads CONTENT from 1 ContentWebSeed and gives the request lengths that the webseed received. */
-async function download (t, { requestLength, failFirstRequest } = {}) {
+/** Downloads CONTENT from ContentWebSeeds and gives the request lengths that the webseeds received. */
+async function download (t, { requestLength, failFirstRequest, holdRequest, webSeedCount = 1 } = {}) {
   const client = new WebTorrent({ dht: false, tracker: false, lsd: false, natUpnp: false, natPmp: false, utPex: false })
   client.on('error', err => t.fail(err))
 
   const torrent = client.add(await createTorrentFile(), { store: MemoryChunkStore })
   await new Promise(resolve => torrent.once('ready', resolve))
 
-  const webSeed = new ContentWebSeed('content-web-seed', torrent, { failFirstRequest })
-  torrent.addWebSeed(webSeed)
-  if (requestLength) torrent._peers.get(webSeed.connId).wire.webSeedRequestLength = requestLength
+  const webSeeds = []
+  for (let i = 0; i < webSeedCount; i++) {
+    const webSeed = new ContentWebSeed(`content-web-seed-${i}`, torrent, { failFirstRequest, holdRequest })
+    torrent.addWebSeed(webSeed)
+    if (requestLength) torrent._peers.get(webSeed.connId).wire.webSeedRequestLength = requestLength
+    webSeeds.push(webSeed)
+  }
 
-  await new Promise(resolve => torrent.once('done', resolve))
-  const downloaded = new Uint8Array(await torrent.files[0].arrayBuffer())
-  await new Promise(resolve => client.destroy(resolve))
-
-  return { requestLengths: webSeed.requestLengths, downloaded }
+  const done = new Promise(resolve => torrent.once('done', resolve))
+  const timeout = new Promise((resolve, reject) => setTimeout(() => reject(new Error('the download did not complete')), 4000).unref())
+  try {
+    await Promise.race([done, timeout])
+    const downloaded = new Uint8Array(await torrent.files[0].arrayBuffer())
+    return { requestLengths: webSeeds.flatMap(webSeed => webSeed.requestLengths), downloaded }
+  } finally {
+    await new Promise(resolve => client.destroy(resolve))
+  }
 }
 
 test('webSeedRequestLength limits the size of each webseed request', async t => {
@@ -103,4 +112,42 @@ test('a failed webseed request with webSeedRequestLength frees its blocks for a 
 
   t.deepEqual(downloaded, CONTENT, 'downloaded correct content after the failed request')
   t.ok(requestLengths.every(length => length <= requestLength), 'the new requests are also limited')
+})
+
+// An NZB webseed uses 1 connection for each NNTP connection. When an article of a piece fails, all connections give up the piece.
+// Then the requests for the other ranges of the piece fail too, in an order that is not the order of their offsets.
+test('failed requests for all ranges of 1 piece on several webseeds free all blocks of the piece', async t => {
+  t.timeoutAfter(5000)
+  const requestLength = 64 * 1024
+  const failedPiece = 1
+  const held = []
+  let failed = false
+
+  async function failHeldRequests () {
+    // The last failure that the torrent gets is for a range after the start of the piece
+    const webSeeds = [...new Set(held.sort((a, b) => a.offset - b.offset).map(request => request.webSeed))]
+    for (const webSeed of webSeeds) {
+      webSeed.lt_donthave.donthave(failedPiece)
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    for (const { callback } of held) callback(new Error('the article is missing'))
+    // An NZB that the application adds later offers the piece again
+    for (const webSeed of webSeeds) webSeed.have(failedPiece)
+  }
+
+  function holdRequest (webSeed, pieceIndex, offset, length, callback) {
+    if (failed || pieceIndex !== failedPiece) return false
+    held.push({ webSeed, offset, length, callback })
+    if (held.reduce((sum, request) => sum + request.length, 0) >= PIECE_LENGTH) {
+      failed = true
+      failHeldRequests()
+    }
+    return true
+  }
+
+  const { downloaded } = await download(t, { requestLength, holdRequest, webSeedCount: 4 })
+
+  t.ok(failed, 'all requests for the piece failed')
+  t.ok(new Set(held.map(request => request.webSeed)).size > 1, 'the requests for the piece were on more than 1 webseed')
+  t.deepEqual(downloaded, CONTENT, 'downloaded correct content after the piece was offered again')
 })

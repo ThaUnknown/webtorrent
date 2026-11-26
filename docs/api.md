@@ -589,15 +589,18 @@ peers from the torrent swarm when they're slow or don't have pieces that are nee
 The `peer` argument should be an address (i.e. "ip:port" string), a peer id (hex string),
 or `simple-peer` instance.
 
-## `torrent.select(start, end, [priority], [notify])`
+## `torrent.select([start], [end], [priority], [notify])`
 
 Selects a range of pieces to prioritize starting with `start` and ending with `end` (both
 inclusive) at the given `priority`. `notify` is an optional callback to be called when the
-selection is updated with new data.
+selection is updated with new data. `start` defaults to the first piece and `end` defaults
+to the last piece, so `torrent.select()` selects the whole torrent.
 
-## `torrent.deselect(start, end)`
+## `torrent.deselect([start], [end])`
 
-Deprioritizes a range of previously selected pieces.
+Deprioritizes a range of previously selected pieces. `start` defaults to the first piece and
+`end` defaults to the last piece, so `torrent.deselect()` deselects the whole torrent. File
+streams keep downloading the pieces that they read.
 
 ## `torrent.critical(start, end)`
 

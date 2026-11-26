@@ -75,6 +75,46 @@ test('client.deselect: whole torrent', function (t) {
   })
 })
 
+test('client.select: whole torrent without arguments', function (t) {
+  setupClient({
+    t,
+    addTorrentProps: { deselect: true },
+    onTorrent: (torrent) => {
+      torrent.select()
+    },
+    onIdle: (torrent) => {
+      t.equal(torrent.pieces.filter((a) => a === null).length, torrent.pieces.length)
+    }
+  })
+})
+
+test('client.deselect: whole torrent without arguments', function (t) {
+  setupClient({
+    t,
+    onTorrent: (torrent) => {
+      torrent.deselect()
+    },
+    onIdle: (torrent) => {
+      t.equal(torrent.pieces.filter((a) => a === null).length, 0)
+    }
+  })
+})
+
+// An application deselects the whole torrent to download only the parts that its file streams read
+test('client.deselect: whole torrent without arguments keeps the file streams', function (t) {
+  const streamedPieces = 2
+  setupClient({
+    t,
+    onTorrent: (torrent) => {
+      torrent.files[0][Symbol.asyncIterator]({ start: 0, end: streamedPieces * torrent.pieceLength - 1 })
+      torrent.deselect()
+    },
+    onIdle: (torrent) => {
+      t.equal(torrent.pieces.filter((a) => a === null).length, streamedPieces, 'only the streamed pieces are downloaded')
+    }
+  })
+})
+
 test('client.deselect: whole torrent - start as deselected', function (t) {
   setupClient({
     t,
